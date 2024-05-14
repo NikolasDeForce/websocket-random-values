@@ -1,42 +1,78 @@
 package main
 
 import (
-	//"fmt"
 	"fmt"
 	"log"
-	"math/rand"
-	"net"
+	"net/http"
 	"os"
+	"time"
+
+	"github.com/gorilla/websocket"
 )
 
-func randomValue(c net.Conn) {
-	randVal := rand.Intn(1000)
-	log.Println("Server returns a random of value(1-1000) --> Your value:", randVal)
+var PORT = ":1234"
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+func rootHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Welcome!\n")
+	fmt.Fprintf(w, "Please use /ws for websocket!")
+}
+
+func wsHanler(w http.ResponseWriter, r *http.Request) {
+	log.Println("Connection from", r.Host)
+
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println("upgrader.Upgrade:", err)
+		return
+	}
+	defer ws.Close()
+
+	for {
+		mt, message, err := ws.ReadMessage()
+		if err != nil {
+			log.Println("From", r.Host, "read", err)
+			break
+		}
+
+		log.Print("Received: ", string(message))
+		err = ws.WriteMessage(mt, message)
+		if err != nil {
+			log.Println("WriteMessage:", err)
+			break
+		}
+	}
 }
 
 func main() {
 	arguments := os.Args
-	if len(arguments) == 1 {
-		log.Println("Please provide a port number")
-		return
-	} else {
-		log.Println("Connection to port -->", arguments[1])
+	if len(arguments) != 1 {
+		PORT = ":" + arguments[1]
 	}
 
-	port := ":" + arguments[1]
+	mux := http.NewServeMux()
+	s := &http.Server{
+		Addr:         PORT,
+		Handler:      mux,
+		IdleTimeout:  10 * time.Second,
+		ReadTimeout:  time.Second,
+		WriteTimeout: time.Second,
+	}
 
-	l, err := net.Listen("tcp4", port)
-	assertNotNill(err)
-	defer l.Close()
+	mux.Handle("/", http.HandlerFunc(rootHandler))
+	mux.Handle("/ws", http.HandlerFunc(wsHanler))
 
-	c, err := l.Accept()
-	assertNotNill(err)
-	randomValue(c)
-}
-
-func assertNotNill(err error) {
+	log.Println("Listening to TCP Port", PORT)
+	err := s.ListenAndServe()
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
 }
