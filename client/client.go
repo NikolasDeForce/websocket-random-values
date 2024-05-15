@@ -18,6 +18,8 @@ func randomValue(value int) {
 	for i := 0; i < value; i++ {
 		randVal := rand.Intn(1000)
 		fmt.Println("Random of value: ", randVal)
+		fmt.Printf("Range %v of your input %v\n", i+1, value)
+		fmt.Println("----------------------------")
 	}
 }
 
